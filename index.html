@@ -54,6 +54,26 @@ body.n2{--clock:clamp(64px,19vw,104px)}
 .wake-btn[aria-pressed="true"]{border-color:var(--ball);color:var(--line);background:var(--panel)}
 .wake-btn:disabled{opacity:.5;cursor:default}
 
+.opt-panel{margin:0 0 14px}
+.opt-panel[hidden]{display:none}
+.opt-label{margin:0 0 6px;font-size:12px;color:var(--net)}
+#soundSeg{margin-bottom:10px}
+#soundSeg button{white-space:normal;line-height:1.25;padding:8px 5px}
+
+.tt-kb{display:flex;align-items:center;justify-content:center;gap:8px;margin-bottom:9px}
+.tt-kb[hidden]{display:none}
+.tt-kb input{
+  width:60px;text-align:center;font:inherit;font-size:18px;font-variant-numeric:tabular-nums;
+  background:var(--panel-2);border:1px solid var(--edge);border-radius:8px;color:var(--line);
+  padding:8px 4px;
+}
+.tt-kb input::-webkit-outer-spin-button,.tt-kb input::-webkit-inner-spin-button{-webkit-appearance:none;margin:0}
+.tt-kb span{color:var(--net);font-size:18px}
+.tt-kb button{
+  flex:0 0 auto;height:38px;padding:0 16px;border-radius:8px;border:1px solid var(--ball);
+  background:var(--ball);color:#3A1500;font:inherit;font-size:14px;font-weight:600;cursor:pointer;
+}
+
 .tt-card{
   display:flex;background:var(--panel);border:1px solid var(--edge);
   border-radius:14px;overflow:hidden;margin-bottom:12px;
@@ -80,6 +100,7 @@ body.n2{--clock:clamp(64px,19vw,104px)}
   font-size:var(--clock);font-weight:700;line-height:1.04;
   font-variant-numeric:tabular-nums;letter-spacing:-2px;
 }
+.tt-clock.tenths{font-size:calc(var(--clock) * .72);letter-spacing:-1px}
 .tt-card.over .tt-clock{color:var(--ball);animation:pulse 1s steps(1,end) infinite}
 @keyframes pulse{50%{opacity:.25}}
 @media (prefers-reduced-motion:reduce){.tt-card.over .tt-clock{animation:none}}
@@ -139,6 +160,19 @@ button:focus-visible{outline:2px solid var(--ball);outline-offset:2px}
 
   <button type="button" id="wakeToggle" class="wake-btn" aria-pressed="false">Garder l'écran allumé</button>
 
+  <button type="button" id="optToggle" class="wake-btn" aria-pressed="false">Options de sonnerie</button>
+  <div id="optPanel" class="opt-panel" hidden>
+    <p class="opt-label">Son de la sonnerie</p>
+    <div class="seg" id="soundSeg" role="group" aria-label="Son de la sonnerie">
+      <button type="button" data-snd="whistle">Sifflet</button>
+      <button type="button" data-snd="bounce">Rebond balle</button>
+      <button type="button" data-snd="beep">Bip classique</button>
+    </div>
+    <button type="button" id="testSnd" class="wake-btn">Tester le son</button>
+    <p class="opt-label">Vibration à la sonnerie</p>
+    <button type="button" id="vibToggle" class="wake-btn" aria-pressed="true">Vibration activée</button>
+  </div>
+
   <main id="tables"></main>
 
   <div class="foot">
@@ -146,7 +180,7 @@ button:focus-visible{outline:2px solid var(--ball);outline-offset:2px}
     <button id="resetAll" type="button">Tout remettre à zéro</button>
   </div>
 
-  <p class="hint">Chaque piste garde son mode et sa durée. Appuie sur les chiffres pour régler la durée librement. « Garder l'écran allumé » bloque la mise en veille même sans minuteur en cours ; l'écran reste sinon allumé automatiquement tant qu'une piste tourne. Chrome&nbsp;: menu ⋮ puis « Ajouter à l'écran d'accueil » pour l'ouvrir comme une appli, hors connexion.</p>
+  <p class="hint">Chaque piste garde son mode et sa durée. Appuie sur les chiffres pour régler la durée : au clavier (minutes / secondes puis Valider) ou avec les boutons ± juste en dessous. « Garder l'écran allumé » bloque la mise en veille même sans minuteur en cours. « Options de sonnerie » permet de choisir le son et d'activer ou non la vibration. Chrome&nbsp;: menu ⋮ puis « Ajouter à l'écran d'accueil » pour l'ouvrir comme une appli, hors connexion.</p>
 </div>
 
 <script>
@@ -191,7 +225,7 @@ var DEFAULTS=[
   {mode:"match",set:60000, tag:"tm"}
 ];
 
-var S,N,UI=[],ac=null,lock=null,manualWake=false;
+var S,N,UI=[],ac=null,lock=null,manualWake=false,soundChoice="whistle",vibrateOn=true;
 
 function fresh(){
   return DEFAULTS.map(function(d){
@@ -206,6 +240,8 @@ function load(){
     var d=JSON.parse(raw);
     if(d&&d.n>=1&&d.n<=3)N=d.n;
     if(d&&typeof d.keepAwake==="boolean")manualWake=d.keepAwake;
+    if(d&&(d.sound==="bounce"||d.sound==="beep"||d.sound==="whistle"))soundChoice=d.sound;
+    if(d&&typeof d.vibrate==="boolean")vibrateOn=d.vibrate;
     if(d&&d.pistes)d.pistes.forEach(function(v,i){
       if(!S[i]||!v)return;
       if(v.mode==="ent"||v.mode==="match"||v.mode==="chrono")S[i].mode=v.mode;
@@ -219,6 +255,8 @@ function save(){
     localStorage.setItem("minuteur-tt-2",JSON.stringify({
       n:N,
       keepAwake:manualWake,
+      sound:soundChoice,
+      vibrate:vibrateOn,
       pistes:S.map(function(m){return {mode:m.mode,set:m.set,tag:m.tag};})
     }));
   }catch(e){}
@@ -253,24 +291,54 @@ function bounce(time,freq,vol){
   src.connect(bp);bp.connect(ng);ng.connect(ac.destination);
   src.start(time);src.stop(time+.04);
 }
-function tone(){
+function beep(time){
+  var g=ac.createGain(),o=ac.createOscillator();
+  o.type="square";o.frequency.value=1046;
+  g.gain.setValueAtTime(.0001,time);
+  g.gain.exponentialRampToValueAtTime(.28,time+.015);
+  g.gain.exponentialRampToValueAtTime(.0001,time+.22);
+  o.connect(g);g.connect(ac.destination);
+  o.start(time);o.stop(time+.25);
+}
+function whistle(time){
+  var o=ac.createOscillator(),g=ac.createGain();
+  o.type="triangle";
+  o.frequency.setValueAtTime(2200,time);
+  o.frequency.linearRampToValueAtTime(3100,time+.05);
+  o.frequency.setValueAtTime(3100,time+.16);
+  o.frequency.linearRampToValueAtTime(2500,time+.21);
+  g.gain.setValueAtTime(.0001,time);
+  g.gain.exponentialRampToValueAtTime(.34,time+.02);
+  g.gain.setValueAtTime(.34,time+.16);
+  g.gain.exponentialRampToValueAtTime(.0001,time+.24);
+  o.connect(g);g.connect(ac.destination);
+  o.start(time);o.stop(time+.26);
+}
+function playSound(){
   try{
     if(!ac)ac=new (window.AudioContext||window.webkitAudioContext)();
     if(ac.state==="suspended")ac.resume();
     var t0=ac.currentTime;
-    // une balle qui rebondit sur la table puis sur la raquette : le tempo s'accélère
-    var hits=[[0,1900,.30],[.22,1300,.30],[.40,1900,.28],[.54,1300,.28],[.65,1900,.26]];
-    hits.forEach(function(h){ bounce(t0+h[0],h[1],h[2]); });
+    if(soundChoice==="beep"){
+      [0,.32,.64].forEach(function(off){ beep(t0+off); });
+    }else if(soundChoice==="whistle"){
+      whistle(t0);whistle(t0+.34);
+    }else{
+      var hits=[[0,1900,.30],[.22,1300,.30],[.40,1900,.28],[.54,1300,.28],[.65,1900,.26]];
+      hits.forEach(function(h){ bounce(t0+h[0],h[1],h[2]); });
+    }
   }catch(e){}
-  try{ if(navigator.vibrate) navigator.vibrate([260,140,260,140,260]); }catch(e){}
+  if(vibrateOn){
+    try{ if(navigator.vibrate) navigator.vibrate([260,140,260,140,260]); }catch(e){}
+  }
 }
 function startAlarm(m){
-  stopAlarm(m);tone();
+  stopAlarm(m);playSound();
   var n=0;
   m.alarm=setInterval(function(){
     n++;
     if(n>3){stopAlarm(m);return;}
-    tone();
+    playSound();
   },2600);
 }
 function stopAlarm(m){
@@ -387,6 +455,36 @@ function build(i){
   pre.className="tt-row";
   body.appendChild(pre);
 
+  var kb=document.createElement("div");
+  kb.className="tt-kb";kb.hidden=true;
+  var minIn=document.createElement("input");
+  minIn.type="number";minIn.inputMode="numeric";minIn.min="0";minIn.max="599";
+  minIn.setAttribute("aria-label","Minutes");
+  var sep=document.createElement("span");sep.textContent=":";
+  var secIn=document.createElement("input");
+  secIn.type="number";secIn.inputMode="numeric";secIn.min="0";secIn.max="59";
+  secIn.setAttribute("aria-label","Secondes");
+  var okBtn=document.createElement("button");
+  okBtn.type="button";okBtn.textContent="Valider";
+  kb.appendChild(minIn);kb.appendChild(sep);kb.appendChild(secIn);kb.appendChild(okBtn);
+  body.appendChild(kb);
+
+  function applyKb(){
+    var mm=parseInt(minIn.value,10);if(isNaN(mm)||mm<0)mm=0;
+    var ss=parseInt(secIn.value,10);if(isNaN(ss)||ss<0)ss=0;if(ss>59)ss=59;
+    var total=Math.min(36000000,Math.max(10000,(mm*60+ss)*1000));
+    reset(m);
+    m.set=total;m.tag="lib";m.fine=false;
+    save();wake();render();
+  }
+  okBtn.onclick=applyKb;
+  minIn.addEventListener("keydown",function(e){
+    if(e.key==="Enter"){e.preventDefault();secIn.focus();}
+  });
+  secIn.addEventListener("keydown",function(e){
+    if(e.key==="Enter"){e.preventDefault();applyKb();}
+  });
+
   var fine=document.createElement("div");
   fine.className="tt-row fine";fine.hidden=true;
   FINE.forEach(function(f){
@@ -399,7 +497,12 @@ function build(i){
 
   clock.onclick=function(){
     if(!isTimer(m))return;
-    m.fine=!m.fine;render();
+    m.fine=!m.fine;
+    if(m.fine){
+      minIn.value=Math.floor(m.set/60000);
+      secIn.value=Math.floor((m.set%60000)/1000);
+    }
+    render();
   };
 
   var run=document.createElement("div");
@@ -438,7 +541,7 @@ function build(i){
 
   card.addEventListener("pointerdown",function(){ stopAlarm(m); });
 
-  return {card:card,seg:seg,mbtn:mbtn,clock:clock,sub:sub,pre:pre,pbtn:[],fine:fine,go:go,exp:exp,cnt:cnt,esub:esub};
+  return {card:card,seg:seg,mbtn:mbtn,clock:clock,sub:sub,pre:pre,pbtn:[],kb:kb,fine:fine,go:go,exp:exp,cnt:cnt,esub:esub};
 }
 
 function setCount(n){
@@ -471,6 +574,7 @@ function render(){
       v=elapsed(m);
     }
     u.clock.textContent=fmt(v,m.mode==="chrono");
+    u.clock.classList.toggle("tenths",m.mode==="chrono");
 
     var label;
     if(m.mode==="chrono")label="Chronomètre";
@@ -485,6 +589,7 @@ function render(){
       u.mbtn[k].setAttribute("aria-pressed",m.mode===MODES[k][0]?"true":"false");
 
     u.pre.hidden=!isTimer(m);
+    u.kb.hidden=!(isTimer(m)&&m.fine);
     u.fine.hidden=!(isTimer(m)&&m.fine);
     for(var p=0;p<u.pbtn.length;p++){
       var pr=u.pbtn[p]._p;
@@ -530,6 +635,52 @@ if(!("wakeLock" in navigator)){
     save();wake();renderWakeBtn();
   };
   renderWakeBtn();
+}
+
+var optToggle=document.getElementById("optToggle");
+var optPanel=document.getElementById("optPanel");
+optToggle.onclick=function(){
+  var opening=optPanel.hidden;
+  optPanel.hidden=!opening;
+  optToggle.setAttribute("aria-pressed",opening?"true":"false");
+};
+
+var soundBtns=document.getElementById("soundSeg").children;
+function renderSoundBtns(){
+  Array.prototype.forEach.call(soundBtns,function(b){
+    b.setAttribute("aria-pressed",b.dataset.snd===soundChoice?"true":"false");
+  });
+}
+Array.prototype.forEach.call(soundBtns,function(b){
+  b.onclick=function(){
+    soundChoice=b.dataset.snd;
+    save();renderSoundBtns();
+  };
+});
+renderSoundBtns();
+
+document.getElementById("testSnd").onclick=function(){
+  try{
+    if(!ac)ac=new (window.AudioContext||window.webkitAudioContext)();
+    if(ac.state==="suspended")ac.resume();
+  }catch(e){}
+  playSound();
+};
+
+var vibBtn=document.getElementById("vibToggle");
+function renderVibBtn(){
+  vibBtn.setAttribute("aria-pressed",vibrateOn?"true":"false");
+  vibBtn.textContent=vibrateOn?"Vibration activée":"Vibration désactivée";
+}
+if(!("vibrate" in navigator)){
+  vibBtn.disabled=true;
+  vibBtn.textContent="Vibration non disponible sur ce navigateur";
+}else{
+  vibBtn.onclick=function(){
+    vibrateOn=!vibrateOn;
+    save();renderVibBtn();
+  };
+  renderVibBtn();
 }
 
 document.getElementById("stopAll").onclick=function(){
