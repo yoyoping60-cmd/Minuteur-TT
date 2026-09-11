@@ -1,0 +1,710 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0E3145">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<title>Minuteur TT</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'><rect width='64' height='64' rx='12' fill='rgb(14,49,69)'/><circle cx='32' cy='32' r='15' fill='none' stroke='rgb(242,109,33)' stroke-width='5'/><path d='M32 22v11l7 5' stroke='rgb(242,244,241)' stroke-width='5' stroke-linecap='round' fill='none'/></svg>">
+<style>
+:root{
+  --table:#0B2637;
+  --panel:#0E3145;
+  --panel-2:#12405A;
+  --line:#F2F4F1;
+  --ball:#F26D21;
+  --net:#8FB0C0;
+  --edge:rgba(242,244,241,.14);
+  --clock:clamp(54px,16vw,84px);
+}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;background:var(--table);color:var(--line)}
+body{
+  font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+  padding:env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
+  -webkit-user-select:none;user-select:none;
+}
+.wrap{max-width:560px;margin:0 auto;padding:14px 12px 28px}
+body.n1{--clock:clamp(78px,23vw,128px)}
+body.n2{--clock:clamp(64px,19vw,104px)}
+
+.head{display:flex;align-items:baseline;justify-content:space-between;gap:10px;padding:2px 4px 10px}
+.head h1{font-size:19px;font-weight:600;margin:0;letter-spacing:.2px}
+.head p{margin:0;font-size:12px;color:var(--net)}
+
+.seg{display:flex;border:1px solid var(--edge);border-radius:9px;overflow:hidden}
+.seg button{
+  flex:1;background:transparent;border:0;color:var(--net);
+  font:inherit;font-size:12px;padding:8px 6px;cursor:pointer;white-space:nowrap;
+}
+.seg button[aria-pressed="true"]{background:var(--panel-2);color:var(--line)}
+.pistes{margin:0 0 10px}
+.pistes button{font-size:13px}
+
+.wake-btn{
+  display:block;width:100%;margin:0 0 14px;padding:11px 14px;text-align:left;
+  background:transparent;border:1px solid var(--edge);border-radius:10px;
+  color:var(--net);font:inherit;font-size:13px;cursor:pointer;
+}
+.wake-btn[aria-pressed="true"]{border-color:var(--ball);color:var(--line);background:var(--panel)}
+.wake-btn:disabled{opacity:.5;cursor:default}
+
+.opt-panel{margin:0 0 14px}
+.opt-panel[hidden]{display:none}
+.opt-label{margin:0 0 6px;font-size:12px;color:var(--net)}
+#soundSeg{margin-bottom:10px}
+#soundSeg button{white-space:normal;line-height:1.25;padding:8px 5px}
+
+.tt-kb{display:flex;align-items:center;justify-content:center;gap:8px;margin-bottom:9px}
+.tt-kb[hidden]{display:none}
+.tt-kb input{
+  width:60px;text-align:center;font:inherit;font-size:18px;font-variant-numeric:tabular-nums;
+  background:var(--panel-2);border:1px solid var(--edge);border-radius:8px;color:var(--line);
+  padding:8px 4px;
+}
+.tt-kb input::-webkit-outer-spin-button,.tt-kb input::-webkit-inner-spin-button{-webkit-appearance:none;margin:0}
+.tt-kb span{color:var(--net);font-size:18px}
+.tt-kb button{
+  flex:0 0 auto;height:38px;padding:0 16px;border-radius:8px;border:1px solid var(--ball);
+  background:var(--ball);color:#3A1500;font:inherit;font-size:14px;font-weight:600;cursor:pointer;
+}
+
+.tt-card{
+  display:flex;background:var(--panel);border:1px solid var(--edge);
+  border-radius:14px;overflow:hidden;margin-bottom:12px;
+}
+.tt-card[hidden]{display:none}
+.tt-strip{
+  width:32px;flex:0 0 32px;display:flex;align-items:center;justify-content:center;
+  background:var(--panel-2);color:var(--net);font-size:15px;font-weight:600;
+  transition:background .18s linear,color .18s linear;
+}
+.tt-card.on .tt-strip{background:var(--ball);color:#3A1500}
+.tt-card.over .tt-strip{background:var(--line);color:var(--table)}
+.tt-body{flex:1;min-width:0;padding:11px 12px 12px}
+
+.tt-clockwrap{position:relative;padding:10px 0 2px}
+.tt-clockwrap::before{
+  content:"";position:absolute;left:50%;top:12px;bottom:2px;width:1px;
+  background:var(--line);opacity:.13;
+}
+.tt-clock{
+  position:relative;display:block;width:100%;text-align:center;
+  background:transparent;border:0;color:var(--line);cursor:pointer;
+  font-family:ui-monospace,"SF Mono","Roboto Mono","DejaVu Sans Mono",monospace;
+  font-size:var(--clock);font-weight:700;line-height:1.04;
+  font-variant-numeric:tabular-nums;letter-spacing:-2px;
+}
+.tt-clock.tenths{font-size:calc(var(--clock) * .72);letter-spacing:-1px}
+.tt-card.over .tt-clock{color:var(--ball);animation:pulse 1s steps(1,end) infinite}
+@keyframes pulse{50%{opacity:.25}}
+@media (prefers-reduced-motion:reduce){.tt-card.over .tt-clock{animation:none}}
+
+.tt-sub{margin:0 0 9px;min-height:17px;text-align:center;font-size:13px;color:var(--net)}
+.tt-card.over .tt-sub{color:var(--ball)}
+
+.tt-row{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:9px}
+.tt-row[hidden]{display:none}
+.tt-row button{
+  flex:1 0 auto;background:transparent;color:var(--net);
+  border:1px solid var(--edge);border-radius:8px;
+  font:inherit;font-size:12px;padding:7px 8px;cursor:pointer;
+}
+.tt-row button[aria-pressed="true"]{border-color:var(--ball);color:var(--line)}
+.tt-row.fine button{background:var(--panel-2)}
+
+.tt-run{display:flex;gap:8px}
+.tt-run button{
+  flex:1;height:50px;border-radius:10px;border:1px solid var(--edge);
+  background:transparent;color:var(--line);font:inherit;font-size:16px;font-weight:600;cursor:pointer;
+}
+.tt-run .go{background:var(--ball);border-color:var(--ball);color:#3A1500}
+.tt-card.on .tt-run .go{background:transparent;border-color:var(--edge);color:var(--line)}
+.tt-run .rz{flex:0 0 92px;color:var(--net);font-weight:400;font-size:14px}
+
+.tt-exp{border-top:1px solid var(--edge);margin-top:11px;padding-top:11px;text-align:center}
+.tt-exp[hidden]{display:none}
+.tt-exp .cnt{font-size:34px;font-weight:700;font-variant-numeric:tabular-nums;line-height:1.1}
+.tt-exp .sub{font-size:12px;color:var(--net);margin:2px 0 9px}
+.tt-exp .row{display:flex;gap:8px}
+.tt-exp .row button{flex:1;height:46px;border-radius:10px;border:1px solid var(--edge);background:transparent;color:var(--line);font:inherit;font-size:15px;cursor:pointer}
+.tt-exp .row .add{background:var(--panel-2)}
+.tt-exp.win .cnt{color:var(--ball)}
+
+.foot{display:flex;gap:8px;margin-top:4px}
+.foot button{
+  flex:1;height:44px;border-radius:10px;border:1px solid var(--edge);
+  background:transparent;color:var(--net);font:inherit;font-size:14px;cursor:pointer;
+}
+.hint{margin:14px 4px 0;font-size:12px;line-height:1.6;color:var(--net)}
+button:focus-visible{outline:2px solid var(--ball);outline-offset:2px}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="head">
+    <h1>Minuteur TT</h1>
+    <p>AS Montchevreuil</p>
+  </header>
+
+  <div class="seg pistes" id="pistes" role="group" aria-label="Nombre de pistes">
+    <button type="button" data-n="1">1 piste</button>
+    <button type="button" data-n="2">2 pistes</button>
+    <button type="button" data-n="3">3 pistes</button>
+  </div>
+
+  <button type="button" id="wakeToggle" class="wake-btn" aria-pressed="false">Garder l'écran allumé</button>
+
+  <button type="button" id="optToggle" class="wake-btn" aria-pressed="false">Options de sonnerie</button>
+  <div id="optPanel" class="opt-panel" hidden>
+    <p class="opt-label">Son de la sonnerie</p>
+    <div class="seg" id="soundSeg" role="group" aria-label="Son de la sonnerie">
+      <button type="button" data-snd="whistle">Sifflet</button>
+      <button type="button" data-snd="bounce">Rebond balle</button>
+      <button type="button" data-snd="beep">Bip classique</button>
+    </div>
+    <button type="button" id="testSnd" class="wake-btn">Tester le son</button>
+    <p class="opt-label">Vibration à la sonnerie</p>
+    <button type="button" id="vibToggle" class="wake-btn" aria-pressed="true">Vibration activée</button>
+  </div>
+
+  <main id="tables"></main>
+
+  <div class="foot">
+    <button id="stopAll" type="button">Tout mettre en pause</button>
+    <button id="resetAll" type="button">Tout remettre à zéro</button>
+  </div>
+
+  <p class="hint">Chaque piste garde son mode et sa durée. Appuie sur les chiffres pour régler la durée : au clavier (minutes / secondes puis Valider) ou avec les boutons ± juste en dessous. « Garder l'écran allumé » bloque la mise en veille même sans minuteur en cours. « Options de sonnerie » permet de choisir le son et d'activer ou non la vibration. Chrome&nbsp;: menu ⋮ puis « Ajouter à l'écran d'accueil » pour l'ouvrir comme une appli, hors connexion.</p>
+</div>
+
+<script>
+(function(){
+"use strict";
+
+var MATCH_TAGS={
+  ech:"Échauffement",
+  tm:"Temps mort",
+  rep:"Repos entre manches",
+  acc:"Règle d'accélération",
+  lib:"Durée libre"
+};
+var END_MATCH={
+  ech:"Fin de l'échauffement",
+  tm:"Fin du temps mort",
+  rep:"Reprise du jeu",
+  acc:"Accélération : 13 retours du relanceur",
+  lib:"Temps écoulé"
+};
+var PRESETS={
+  match:[
+    {t:"ech",s:300,n:"Échauff. 5 min"},
+    {t:"tm", s:60, n:"Temps mort 1 min"},
+    {t:"rep",s:60, n:"Repos manche"},
+    {t:"acc",s:600,n:"Accél. 10 min"}
+  ],
+  ent:[
+    {t:"lib",s:60,  n:"1 min"},
+    {t:"lib",s:180, n:"3 min"},
+    {t:"lib",s:300, n:"5 min"},
+    {t:"lib",s:600, n:"10 min"},
+    {t:"lib",s:900, n:"15 min"}
+  ]
+};
+var FINE=[["-300","−5 min"],["-60","−1 min"],["60","+1 min"],["300","+5 min"],["-10","−10 s"],["10","+10 s"]];
+var MODES=[["ent","Entraînement"],["match","Match"],["chrono","Chrono"]];
+
+var DEFAULTS=[
+  {mode:"ent",  set:300000,tag:"lib"},
+  {mode:"match",set:600000,tag:"acc"},
+  {mode:"match",set:60000, tag:"tm"}
+];
+
+var S,N,UI=[],ac=null,lock=null,manualWake=false,soundChoice="whistle",vibrateOn=true;
+
+function fresh(){
+  return DEFAULTS.map(function(d){
+    return {mode:d.mode,set:d.set,tag:d.tag,base:0,st:0,run:false,over:false,ret:0,fine:false,alarm:null};
+  });
+}
+function load(){
+  S=fresh();N=3;
+  try{
+    var raw=localStorage.getItem("minuteur-tt-2");
+    if(!raw)return;
+    var d=JSON.parse(raw);
+    if(d&&d.n>=1&&d.n<=3)N=d.n;
+    if(d&&typeof d.keepAwake==="boolean")manualWake=d.keepAwake;
+    if(d&&(d.sound==="bounce"||d.sound==="beep"||d.sound==="whistle"))soundChoice=d.sound;
+    if(d&&typeof d.vibrate==="boolean")vibrateOn=d.vibrate;
+    if(d&&d.pistes)d.pistes.forEach(function(v,i){
+      if(!S[i]||!v)return;
+      if(v.mode==="ent"||v.mode==="match"||v.mode==="chrono")S[i].mode=v.mode;
+      if(typeof v.set==="number"&&v.set>=10000&&v.set<=36000000)S[i].set=v.set;
+      if(MATCH_TAGS[v.tag])S[i].tag=v.tag;
+    });
+  }catch(e){}
+}
+function save(){
+  try{
+    localStorage.setItem("minuteur-tt-2",JSON.stringify({
+      n:N,
+      keepAwake:manualWake,
+      sound:soundChoice,
+      vibrate:vibrateOn,
+      pistes:S.map(function(m){return {mode:m.mode,set:m.set,tag:m.tag};})
+    }));
+  }catch(e){}
+}
+
+var noiseBuf=null;
+function getNoise(){
+  if(noiseBuf)return noiseBuf;
+  var len=Math.floor(ac.sampleRate*.05);
+  noiseBuf=ac.createBuffer(1,len,ac.sampleRate);
+  var d=noiseBuf.getChannelData(0);
+  for(var i=0;i<len;i++)d[i]=Math.random()*2-1;
+  return noiseBuf;
+}
+function bounce(time,freq,vol){
+  // composante tonale : le "ping" de la balle
+  var o=ac.createOscillator(),g=ac.createGain();
+  o.type="sine";
+  o.frequency.setValueAtTime(freq*1.7,time);
+  o.frequency.exponentialRampToValueAtTime(freq,time+.05);
+  g.gain.setValueAtTime(.0001,time);
+  g.gain.exponentialRampToValueAtTime(vol,time+.003);
+  g.gain.exponentialRampToValueAtTime(.0001,time+.09);
+  o.connect(g);g.connect(ac.destination);
+  o.start(time);o.stop(time+.1);
+  // composante bruit filtrée : le "tac" sec de l'impact
+  var src=ac.createBufferSource();src.buffer=getNoise();
+  var bp=ac.createBiquadFilter();bp.type="bandpass";bp.frequency.value=freq*1.3;bp.Q.value=1.6;
+  var ng=ac.createGain();
+  ng.gain.setValueAtTime(vol*.55,time);
+  ng.gain.exponentialRampToValueAtTime(.0001,time+.035);
+  src.connect(bp);bp.connect(ng);ng.connect(ac.destination);
+  src.start(time);src.stop(time+.04);
+}
+function beep(time){
+  var g=ac.createGain(),o=ac.createOscillator();
+  o.type="square";o.frequency.value=1046;
+  g.gain.setValueAtTime(.0001,time);
+  g.gain.exponentialRampToValueAtTime(.28,time+.015);
+  g.gain.exponentialRampToValueAtTime(.0001,time+.22);
+  o.connect(g);g.connect(ac.destination);
+  o.start(time);o.stop(time+.25);
+}
+function whistle(time){
+  var o=ac.createOscillator(),g=ac.createGain();
+  o.type="triangle";
+  o.frequency.setValueAtTime(2200,time);
+  o.frequency.linearRampToValueAtTime(3100,time+.05);
+  o.frequency.setValueAtTime(3100,time+.16);
+  o.frequency.linearRampToValueAtTime(2500,time+.21);
+  g.gain.setValueAtTime(.0001,time);
+  g.gain.exponentialRampToValueAtTime(.34,time+.02);
+  g.gain.setValueAtTime(.34,time+.16);
+  g.gain.exponentialRampToValueAtTime(.0001,time+.24);
+  o.connect(g);g.connect(ac.destination);
+  o.start(time);o.stop(time+.26);
+}
+function playSound(){
+  try{
+    if(!ac)ac=new (window.AudioContext||window.webkitAudioContext)();
+    if(ac.state==="suspended")ac.resume();
+    var t0=ac.currentTime;
+    if(soundChoice==="beep"){
+      [0,.32,.64].forEach(function(off){ beep(t0+off); });
+    }else if(soundChoice==="whistle"){
+      whistle(t0);whistle(t0+.34);
+    }else{
+      var hits=[[0,1900,.30],[.22,1300,.30],[.40,1900,.28],[.54,1300,.28],[.65,1900,.26]];
+      hits.forEach(function(h){ bounce(t0+h[0],h[1],h[2]); });
+    }
+  }catch(e){}
+  if(vibrateOn){
+    try{ if(navigator.vibrate) navigator.vibrate([260,140,260,140,260]); }catch(e){}
+  }
+}
+function startAlarm(m){
+  stopAlarm(m);playSound();
+  var n=0;
+  m.alarm=setInterval(function(){
+    n++;
+    if(n>3){stopAlarm(m);return;}
+    playSound();
+  },2600);
+}
+function stopAlarm(m){
+  if(m.alarm){clearInterval(m.alarm);m.alarm=null;}
+  try{ if(navigator.vibrate) navigator.vibrate(0); }catch(e){}
+}
+
+function wake(){
+  var any=manualWake||S.some(function(m){return m.run;});
+  try{
+    if(any&&!lock&&navigator.wakeLock){
+      navigator.wakeLock.request("screen").then(function(l){
+        lock=l;l.addEventListener("release",function(){lock=null;});
+      }).catch(function(){});
+    }else if(!any&&lock){
+      lock.release().catch(function(){});lock=null;
+    }
+  }catch(e){}
+}
+document.addEventListener("visibilitychange",function(){
+  if(document.visibilityState==="visible")wake();
+});
+
+function elapsed(m){return Math.max(0,m.base+(m.run?Date.now()-m.st:0));}
+function pad(n){return (n<10?"0":"")+n;}
+function fmt(ms,tenth){
+  if(ms<0)ms=0;
+  var d=Math.floor(ms/100)%10;
+  var s=Math.floor(ms/1000);
+  var h=Math.floor(s/3600),mi=Math.floor(s/60)%60;
+  s=s%60;
+  if(h>0)return h+":"+pad(mi)+":"+pad(s);
+  return pad(mi)+":"+pad(s)+(tenth?"."+d:"");
+}
+function isTimer(m){return m.mode!=="chrono";}
+
+function reset(m){
+  stopAlarm(m);
+  m.run=false;m.base=0;m.over=false;m.ret=0;
+}
+function adjust(m,sec){
+  stopAlarm(m);
+  m.set=Math.min(36000000,Math.max(10000,m.set+sec*1000));
+  m.tag="lib";
+  if(!m.run){m.base=0;m.over=false;}
+  save();render();
+}
+
+function fillPresets(u,m){
+  var box=u.pre;
+  box.textContent="";
+  u.pbtn=[];
+  if(!isTimer(m))return;
+  PRESETS[m.mode].forEach(function(p){
+    var b=document.createElement("button");
+    b.type="button";b.textContent=p.n;
+    b.onclick=function(){
+      reset(m);
+      m.set=p.s*1000;m.tag=p.t;
+      save();wake();render();
+    };
+    b._p=p;
+    box.appendChild(b);
+    u.pbtn.push(b);
+  });
+}
+
+function build(i){
+  var m=S[i];
+  var card=document.createElement("section");
+  card.className="tt-card";
+
+  var strip=document.createElement("div");
+  strip.className="tt-strip";strip.textContent=String(i+1);
+  card.appendChild(strip);
+
+  var body=document.createElement("div");
+  body.className="tt-body";
+  card.appendChild(body);
+
+  var seg=document.createElement("div");
+  seg.className="seg";
+  seg.setAttribute("role","group");
+  seg.setAttribute("aria-label","Mode de la piste "+(i+1));
+  var mbtn=MODES.map(function(md){
+    var b=document.createElement("button");
+    b.type="button";b.textContent=md[1];
+    b.onclick=function(){
+      if(m.mode===md[0])return;
+      reset(m);
+      m.mode=md[0];
+      if(md[0]==="match"){m.tag="ech";m.set=300000;}
+      else if(md[0]==="ent"){m.tag="lib";m.set=300000;}
+      save();wake();fillPresets(UI[i],m);render();
+    };
+    seg.appendChild(b);
+    return b;
+  });
+  body.appendChild(seg);
+
+  var cw=document.createElement("div");
+  cw.className="tt-clockwrap";
+  var clock=document.createElement("button");
+  clock.type="button";clock.className="tt-clock";
+  clock.setAttribute("aria-label","Régler la durée de la piste "+(i+1));
+  cw.appendChild(clock);
+  body.appendChild(cw);
+
+  var sub=document.createElement("p");
+  sub.className="tt-sub";
+  body.appendChild(sub);
+
+  var pre=document.createElement("div");
+  pre.className="tt-row";
+  body.appendChild(pre);
+
+  var kb=document.createElement("div");
+  kb.className="tt-kb";kb.hidden=true;
+  var minIn=document.createElement("input");
+  minIn.type="number";minIn.inputMode="numeric";minIn.min="0";minIn.max="599";
+  minIn.setAttribute("aria-label","Minutes");
+  var sep=document.createElement("span");sep.textContent=":";
+  var secIn=document.createElement("input");
+  secIn.type="number";secIn.inputMode="numeric";secIn.min="0";secIn.max="59";
+  secIn.setAttribute("aria-label","Secondes");
+  var okBtn=document.createElement("button");
+  okBtn.type="button";okBtn.textContent="Valider";
+  kb.appendChild(minIn);kb.appendChild(sep);kb.appendChild(secIn);kb.appendChild(okBtn);
+  body.appendChild(kb);
+
+  function applyKb(){
+    var mm=parseInt(minIn.value,10);if(isNaN(mm)||mm<0)mm=0;
+    var ss=parseInt(secIn.value,10);if(isNaN(ss)||ss<0)ss=0;if(ss>59)ss=59;
+    var total=Math.min(36000000,Math.max(10000,(mm*60+ss)*1000));
+    reset(m);
+    m.set=total;m.tag="lib";m.fine=false;
+    save();wake();render();
+  }
+  okBtn.onclick=applyKb;
+  minIn.addEventListener("keydown",function(e){
+    if(e.key==="Enter"){e.preventDefault();secIn.focus();}
+  });
+  secIn.addEventListener("keydown",function(e){
+    if(e.key==="Enter"){e.preventDefault();applyKb();}
+  });
+
+  var fine=document.createElement("div");
+  fine.className="tt-row fine";fine.hidden=true;
+  FINE.forEach(function(f){
+    var b=document.createElement("button");
+    b.type="button";b.textContent=f[1];
+    b.onclick=function(){ adjust(m,parseInt(f[0],10)); };
+    fine.appendChild(b);
+  });
+  body.appendChild(fine);
+
+  clock.onclick=function(){
+    if(!isTimer(m))return;
+    m.fine=!m.fine;
+    if(m.fine){
+      minIn.value=Math.floor(m.set/60000);
+      secIn.value=Math.floor((m.set%60000)/1000);
+    }
+    render();
+  };
+
+  var run=document.createElement("div");
+  run.className="tt-run";
+  var go=document.createElement("button");go.type="button";go.className="go";
+  var rz=document.createElement("button");rz.type="button";rz.className="rz";rz.textContent="Zéro";
+  run.appendChild(go);run.appendChild(rz);
+  body.appendChild(run);
+
+  go.onclick=function(){
+    stopAlarm(m);
+    if(m.run){
+      m.base+=Date.now()-m.st;m.run=false;
+    }else{
+      if(isTimer(m)&&m.base>=m.set)m.base=0;
+      m.over=false;m.ret=0;m.fine=false;
+      m.st=Date.now();m.run=true;
+    }
+    wake();render();
+  };
+  rz.onclick=function(){ reset(m);wake();render(); };
+
+  var exp=document.createElement("div");
+  exp.className="tt-exp";exp.hidden=true;
+  var cnt=document.createElement("div");cnt.className="cnt";
+  var esub=document.createElement("p");esub.className="sub";
+  var erow=document.createElement("div");erow.className="row";
+  var add=document.createElement("button");add.type="button";add.className="add";add.textContent="Retour +1";
+  var raz=document.createElement("button");raz.type="button";raz.textContent="Nouveau point";
+  erow.appendChild(add);erow.appendChild(raz);
+  exp.appendChild(cnt);exp.appendChild(esub);exp.appendChild(erow);
+  body.appendChild(exp);
+
+  add.onclick=function(){ if(m.ret<13){m.ret++;render();} };
+  raz.onclick=function(){ m.ret=0;render(); };
+
+  card.addEventListener("pointerdown",function(){ stopAlarm(m); });
+
+  return {card:card,seg:seg,mbtn:mbtn,clock:clock,sub:sub,pre:pre,pbtn:[],kb:kb,fine:fine,go:go,exp:exp,cnt:cnt,esub:esub};
+}
+
+function setCount(n){
+  N=n;
+  document.body.className="n"+n;
+  for(var i=0;i<S.length;i++){
+    var hide=i>=n;
+    UI[i].card.hidden=hide;
+    if(hide&&S[i].run){
+      S[i].base+=Date.now()-S[i].st;
+      S[i].run=false;
+      stopAlarm(S[i]);
+    }
+  }
+  var b=document.getElementById("pistes").children;
+  for(var k=0;k<b.length;k++)b[k].setAttribute("aria-pressed",(+b[k].dataset.n===n)?"true":"false");
+  save();wake();render();
+}
+
+function render(){
+  for(var i=0;i<N;i++){
+    var m=S[i],u=UI[i],v;
+    if(isTimer(m)){
+      v=m.set-elapsed(m);
+      if(m.run&&v<=0){
+        m.run=false;m.base=m.set;m.over=true;v=0;
+        startAlarm(m);wake();
+      }
+    }else{
+      v=elapsed(m);
+    }
+    u.clock.textContent=fmt(v,m.mode==="chrono");
+    u.clock.classList.toggle("tenths",m.mode==="chrono");
+
+    var label;
+    if(m.mode==="chrono")label="Chronomètre";
+    else if(m.mode==="match")label=MATCH_TAGS[m.tag];
+    else label="Entraînement";
+    if(m.over)label=(m.mode==="match")?END_MATCH[m.tag]:"Temps écoulé";
+    u.sub.textContent=label;
+
+    u.card.classList.toggle("on",m.run);
+    u.card.classList.toggle("over",m.over);
+    for(var k=0;k<MODES.length;k++)
+      u.mbtn[k].setAttribute("aria-pressed",m.mode===MODES[k][0]?"true":"false");
+
+    u.pre.hidden=!isTimer(m);
+    u.kb.hidden=!(isTimer(m)&&m.fine);
+    u.fine.hidden=!(isTimer(m)&&m.fine);
+    for(var p=0;p<u.pbtn.length;p++){
+      var pr=u.pbtn[p]._p;
+      var act=(m.tag===pr.t&&m.set===pr.s*1000);
+      u.pbtn[p].setAttribute("aria-pressed",act?"true":"false");
+    }
+
+    u.go.textContent=m.run?"Pause":(elapsed(m)>0&&!m.over?"Reprendre":"Démarrer");
+
+    var showExp=(m.over&&m.mode==="match"&&m.tag==="acc");
+    u.exp.hidden=!showExp;
+    if(showExp){
+      u.cnt.textContent=m.ret+" / 13";
+      u.exp.classList.toggle("win",m.ret>=13);
+      u.esub.textContent=m.ret>=13?"Point au relanceur":"Retours du relanceur — point acquis à 13";
+    }
+  }
+}
+
+load();
+var host=document.getElementById("tables");
+for(var i=0;i<S.length;i++){
+  var u=build(i);
+  UI.push(u);
+  host.appendChild(u.card);
+  fillPresets(u,S[i]);
+}
+Array.prototype.forEach.call(document.getElementById("pistes").children,function(b){
+  b.onclick=function(){ setCount(+b.dataset.n); };
+});
+
+var wakeBtn=document.getElementById("wakeToggle");
+function renderWakeBtn(){
+  wakeBtn.setAttribute("aria-pressed",manualWake?"true":"false");
+  wakeBtn.textContent=manualWake?"Écran toujours allumé — activé":"Garder l'écran allumé";
+}
+if(!("wakeLock" in navigator)){
+  wakeBtn.disabled=true;
+  wakeBtn.textContent="Écran toujours allumé — non disponible sur ce navigateur";
+}else{
+  wakeBtn.onclick=function(){
+    manualWake=!manualWake;
+    save();wake();renderWakeBtn();
+  };
+  renderWakeBtn();
+}
+
+var optToggle=document.getElementById("optToggle");
+var optPanel=document.getElementById("optPanel");
+optToggle.onclick=function(){
+  var opening=optPanel.hidden;
+  optPanel.hidden=!opening;
+  optToggle.setAttribute("aria-pressed",opening?"true":"false");
+};
+
+var soundBtns=document.getElementById("soundSeg").children;
+function renderSoundBtns(){
+  Array.prototype.forEach.call(soundBtns,function(b){
+    b.setAttribute("aria-pressed",b.dataset.snd===soundChoice?"true":"false");
+  });
+}
+Array.prototype.forEach.call(soundBtns,function(b){
+  b.onclick=function(){
+    soundChoice=b.dataset.snd;
+    save();renderSoundBtns();
+  };
+});
+renderSoundBtns();
+
+document.getElementById("testSnd").onclick=function(){
+  try{
+    if(!ac)ac=new (window.AudioContext||window.webkitAudioContext)();
+    if(ac.state==="suspended")ac.resume();
+  }catch(e){}
+  playSound();
+};
+
+var vibBtn=document.getElementById("vibToggle");
+function renderVibBtn(){
+  vibBtn.setAttribute("aria-pressed",vibrateOn?"true":"false");
+  vibBtn.textContent=vibrateOn?"Vibration activée":"Vibration désactivée";
+}
+if(!("vibrate" in navigator)){
+  vibBtn.disabled=true;
+  vibBtn.textContent="Vibration non disponible sur ce navigateur";
+}else{
+  vibBtn.onclick=function(){
+    vibrateOn=!vibrateOn;
+    save();renderVibBtn();
+  };
+  renderVibBtn();
+}
+
+document.getElementById("stopAll").onclick=function(){
+  S.forEach(function(m){
+    stopAlarm(m);
+    if(m.run){m.base+=Date.now()-m.st;m.run=false;}
+  });
+  wake();render();
+};
+document.getElementById("resetAll").onclick=function(){
+  S.forEach(reset);
+  wake();render();
+};
+
+document.addEventListener("pointerdown",function unlock(){
+  try{
+    if(!ac)ac=new (window.AudioContext||window.webkitAudioContext)();
+    if(ac.state==="suspended")ac.resume();
+  }catch(e){}
+  document.removeEventListener("pointerdown",unlock);
+});
+
+setCount(N);
+setInterval(render,100);
+render();
+})();
+</script>
+</body>
+</html>
